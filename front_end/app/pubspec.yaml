@@ -28,8 +28,11 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  syncfusion_flutter_charts: ^26.1.35
+  syncfusion_flutter_gauges: ^26.1.35
   flutter:
     sdk: flutter
+    
 
 
   # The following adds the Cupertino Icons font to your application.

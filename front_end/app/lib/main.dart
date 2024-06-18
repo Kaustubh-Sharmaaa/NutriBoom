@@ -1,9 +1,10 @@
-import 'package:flutter/cupertino.dart';
+//import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
+import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:syncfusion_flutter_gauges/gauges.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -11,8 +12,14 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(home: Home());
+    return const MaterialApp(home: Home());
   }
+}
+
+class FoodData {
+  FoodData(this.calorie, this.protein);
+  final double calorie;
+  final double protein;
 }
 
 class Home extends StatelessWidget {
@@ -20,6 +27,21 @@ class Home extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final List<FoodData> ChartData = [
+      FoodData(250, 10),
+      FoodData(500, 30),
+      FoodData(150, 2),
+      FoodData(330, 12),
+      FoodData(420, 8)
+    ];
+
+    double consumedCalories = 0;
+    double consumedProteins = 0;
+    for (FoodData food in ChartData) {
+      consumedCalories += food.calorie;
+      consumedProteins += food.protein;
+    }
+
     return Scaffold(
       backgroundColor: Colors.grey[900],
       appBar: AppBar(
@@ -27,25 +49,63 @@ class Home extends StatelessWidget {
           title: const Text('NutriBoom'),
           centerTitle: true,
           titleTextStyle: const TextStyle(color: Colors.green, fontSize: 40)),
-      body: Column(
-        //mainAxisAlignment: MainAxisAlignment.end,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("Calories:",
-              style: TextStyle(color: Colors.green, fontSize: 20)),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            IconButton(
-                onPressed: () {
-                  print("Pressed");
-                },
-                icon: const Icon(
-                  Icons.add_circle_outline,
-                  size: 80,
-                  color: Colors.green,
-                )),
-          ])
-        ],
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Calories:",
+                style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold)),
+            SfRadialGauge(
+              axes: [
+                RadialAxis(
+                  maximum: 1900,
+                  pointers: [
+                    RangePointer(
+                      color: Colors.green,
+                      value: consumedCalories,
+                    ),
+                  ],
+                )
+              ],
+            ),
+            const Text("Protein:",
+                style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold)),
+            SfRadialGauge(
+              axes: [
+                RadialAxis(
+                  maximum: 100,
+                  pointers: [
+                    RangePointer(
+                      color: Colors.green,
+                      value: consumedProteins,
+                    ),
+                  ],
+                )
+              ],
+            ),
+          ],
+        ),
       ),
+      bottomNavigationBar: FloatingActionButton.extended(
+          label: Text(
+            "Add Food",
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+          ),
+          backgroundColor: Colors.grey[850],
+          onPressed: () {
+            print("Pressed");
+          },
+          icon: const Icon(
+            Icons.add_circle_outline,
+            size: 50,
+            color: Colors.green,
+          )),
     );
   }
 }
