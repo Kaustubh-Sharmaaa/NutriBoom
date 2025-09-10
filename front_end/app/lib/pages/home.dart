@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'search.dart';
+import '../services/api.dart';
 
 class FoodData {
   FoodData(this.calorie, this.protein);
@@ -16,26 +17,39 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
+  final _api = ApiClient();
+  bool _loading = true;
+  double consumedCalories = 0;
+  double consumedProteins = 0;
+  double targetCalories = 1200;
+  double targetProtein = 100;
+  List<ConsumedEntry> entries = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshTotals();
+  }
+
+  Future<void> _refreshTotals() async {
+    setState(() => _loading = true);
+    try {
+      final t = await _api.getTotals();
+      setState(() {
+        consumedCalories = t.consumedCalories;
+        consumedProteins = t.consumedProtein;
+        targetCalories = t.targetCalories;
+        targetProtein = t.targetProtein;
+        entries = t.entries;
+      });
+    } catch (e) {
+      // Keep simple: ignore error UI for now
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
   @override
   Widget build(BuildContext context) {
-    final List<FoodData> ChartData = [
-      FoodData(250, 10),
-      FoodData(500, 30),
-      FoodData(150, 2),
-      FoodData(330, 12),
-      FoodData(420, 8)
-    ];
-
-    double consumedCalories = 0;
-    double consumedProteins = 0;
-    double targetCalories = 1200;
-    double targetProtein = 100;
-
-    for (FoodData food in ChartData) {
-      consumedCalories += food.calorie;
-      consumedProteins += food.protein;
-    }
-
     return Scaffold(
       backgroundColor: Colors.grey[900],
       appBar: AppBar(
@@ -43,7 +57,9 @@ class _HomeState extends State<Home> {
           title: const Text('NutriBoom'),
           centerTitle: true,
           titleTextStyle: const TextStyle(color: Colors.green, fontSize: 40)),
-      body: SingleChildScrollView(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -142,6 +158,52 @@ class _HomeState extends State<Home> {
           ],
         ),
       ),
+      // Consumed list with edit/delete
+      bottomSheet: _loading
+          ? null
+          : Container(
+              color: Colors.grey[900],
+              height: MediaQuery.of(context).size.height * 0.4,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: Text('Today\'s items', style: TextStyle(color: Colors.green, fontSize: 18, fontWeight: FontWeight.bold)),
+                  ),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: entries.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, i) {
+                        final e = entries[i];
+                        final unitLabel = (e.amount != null && e.servingUnit != null)
+                            ? '${e.amount!.toStringAsFixed(0)} ${e.servingUnit}'
+                            : '';
+                        return ListTile(
+                          title: Text(e.name, style: const TextStyle(color: Colors.white)),
+                          subtitle: Text(
+                            '${e.calorie.toStringAsFixed(0)} kcal • ${e.protein.toStringAsFixed(1)} g  ${unitLabel.isNotEmpty ? '• $unitLabel' : ''}',
+                            style: TextStyle(color: Colors.grey[400]),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                  icon: const Icon(Icons.edit, color: Colors.amber),
+                                  onPressed: () => _editAmount(i, e)),
+                              IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                  onPressed: () => _deleteEntry(i)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  )
+                ],
+              ),
+            ),
       bottomNavigationBar: FloatingActionButton.extended(
           label: const Text(
             "Add Food",
@@ -149,9 +211,10 @@ class _HomeState extends State<Home> {
           ),
           backgroundColor: Colors.grey[850],
           onPressed: () {
-            print("loading search");
             Navigator.push(
-                context, MaterialPageRoute(builder: (context) => Search()));
+              context,
+              MaterialPageRoute(builder: (context) => Search(onAdded: _refreshTotals)),
+            );
           },
           icon: const Icon(
             Icons.add_circle_outline,
@@ -159,5 +222,61 @@ class _HomeState extends State<Home> {
             color: Colors.green,
           )),
     );
+  }
+
+  Future<void> _deleteEntry(int index) async {
+    setState(() => _loading = true);
+    try {
+      final t = await _api.deleteConsumed(index);
+      setState(() {
+        consumedCalories = t.consumedCalories;
+        consumedProteins = t.consumedProtein;
+        targetCalories = t.targetCalories;
+        targetProtein = t.targetProtein;
+        entries = t.entries;
+      });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _editAmount(int index, ConsumedEntry entry) async {
+    final controller = TextEditingController(text: (entry.amount ?? entry.servingSize ?? 1).toString());
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[850],
+        title: const Text('Update amount', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(hintText: 'Amount', hintStyle: TextStyle(color: Colors.grey), enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)), focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.green))),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () {
+                final v = double.tryParse(controller.text.trim());
+                if (v != null && v > 0) Navigator.pop(context, v);
+              },
+              child: const Text('Save'))
+        ],
+      ),
+    );
+    if (amount == null) return;
+    setState(() => _loading = true);
+    try {
+      final t = await _api.updateConsumed(index, amount);
+      setState(() {
+        consumedCalories = t.consumedCalories;
+        consumedProteins = t.consumedProtein;
+        targetCalories = t.targetCalories;
+        targetProtein = t.targetProtein;
+        entries = t.entries;
+      });
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 }
